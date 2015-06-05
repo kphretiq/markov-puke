@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+import os, sys, re, random
+import cjson
+import string
+import nltk
+from nltk.corpus import cmudict
+
+class MarkovChaney(object):
+
+    def __init__(self):
+        self.d = cmudict.dict()
+        self.vowels = "aeiou"
+        self.alphanum = string.digits + string.letters + " " + "'"
+
+    def swag(self, word):
+        """
+        Scientific wild ass guess
+        count number of vowels in a word one by one
+        if vowell is preceeded by another vowel don't count it
+        this is "close enough"
+        """
+
+        # nothing with a number is real, man.
+        for i in word:
+            if i in string.digits:
+                return 0
+
+        word = word.lower()
+        cnt = 0
+        # begone bossy, silent e
+        # this misses "theatre" of course . . .
+        if not len(word):
+            return 0
+
+        if word[-1] == "e":
+            cnt -= 1
+
+        if word[-1] == "y":
+            cnt += 1
+
+        # is preceding letter a consonant?
+        precon = True
+
+        for i in word:
+            if i in string.lowercase:
+                if i in self.vowels:
+                    if precon:
+                        cnt += 1
+                        precon = False
+                else:
+                    precon = True
+        return cnt
+
+    def syllable_count(self, word):
+        word = word.lower()
+        try:
+            val = self.d[word]
+        except KeyError:
+            return self.swag(word)
+
+        return len([i for i in val[0] if i[-1] in string.digits])
+
+    def syllable_count_borked(self, word):
+        return [len(list(y for y in x if isdigit(y[-1]))) 
+                for x in self.d[word.lower()][0]]
+
+    def puke(self):
+        limit = 120
+        chain = [random.choice(self.words.keys())]
+        for i in range(limit):
+            chain.append(random.choice(self.words[chain[-1]]))
+        return chain
+
+
+class DBBuilder(object):
+    def __init__(self):
+        self.alphanum = string.digits + string.letters + " " + "'"
+
+    def build(self, TextSources):
+        self.db = {}
+        for base, subs, filenames in os.walk(TextSources):
+            for filename in filenames:
+                if filename.endswith("txt"):
+                    filepath = os.path.join(base, filename)
+                    self.parse_text(filepath)
+        return self.db
+    
+    def parse_text(self, filepath):
+        """
+        Read file into db, creating a json encoded list
+        We use cjson to keep the overhead down (hollow laugh)
+        It's cool, though, this is all done up front.
+        yes, this reads the whole thing in at once, relax, they are to be
+        small text files"""
+        with open(filepath, "r") as f:
+            doc = ("".join([j for j in i if j in self.alphanum]) for i in re.split("\s", f.read()))
+            key = doc.next()
+            while True:
+                try:
+                    # avoid empty keys
+                    if not len(key):
+                        key = doc.next()
+
+                    # assure we have an empty list if this is our first time 
+                    if not key in self.db:
+                        self.db[key] = []
+
+                    # avoid empty values
+                    val = doc.next()
+                    while len(val) == 0:
+                        val = doc.next()
+
+                    # get our list so we can append to it
+                    l = self.db[key]
+
+                    # avoid count of zero
+                    if len(val):
+                        l.append(val)
+                        self.db[key] = l 
+                    key = val
+
+                except StopIteration:
+                    break
+
+if __name__ == "__main__":
+    dbb = DBBuilder()
+    mc = MarkovChaney()
+    mc.words = dbb.build("TextSources")
+    with open("words.json", "w") as f:
+        f.write(cjson.encode(mc.words))
+
+    wordlist = mc.puke()
+    counts = [(k, mc.syllable_count(k)) for k in wordlist]
+    print(wordlist)
+    print(counts)
