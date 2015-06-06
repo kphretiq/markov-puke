@@ -3,6 +3,7 @@ import os, sys, re, random
 import cjson
 import string
 import nltk
+nltk.download("cmudict")
 from nltk.corpus import cmudict
 
 class MarkovChaney(object):
@@ -59,10 +60,6 @@ class MarkovChaney(object):
             return self.swag(word)
 
         return len([i for i in val[0] if i[-1] in string.digits])
-
-    def syllable_count_borked(self, word):
-        return [len(list(y for y in x if isdigit(y[-1]))) 
-                for x in self.d[word.lower()][0]]
 
     def puke(self):
         limit = 120
